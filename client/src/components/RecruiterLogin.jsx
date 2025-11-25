@@ -1,179 +1,175 @@
 import React, { useContext, useEffect, useState } from "react";
-import { assets } from "../assets/assets";
 import { AppContext } from "../context/AppContext";
-import axios from 'axios';
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
-const RecruiterLogin = () => {
+const inputClasses =
+  "w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
 
+const RecruiterLogin = () => {
   const navigate = useNavigate();
-  const [state, setState] = useState("Login");
+  const [mode, setMode] = useState("Login");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
-
-  const [image, setImage] = useState(false);
-
-  const [isTextDataSubmitted, setIsTextDataSubmitted] = useState(false);
+  const [logo, setLogo] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const {setShowRecruiterLogin, backendUrl, setCompanyToken, setCompanyData} = useContext(AppContext);
+  const { setShowRecruiterLogin, backendUrl, setCompanyToken, setCompanyData } =
+    useContext(AppContext);
 
-  const onSubmitHandler = async (e)=>{
+  const handleLogoChange = (event) => {
+    const file = event.target.files[0];
+    setLogo(file || null);
+  };
+
+  const onSubmitHandler = async (e) => {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
-    if(state == "Sign Up" && !isTextDataSubmitted){
-         setLoading(false);
-         return setIsTextDataSubmitted(true);
-    }
+
     try {
-      if (state === 'Login') {
-        const {data} = await axios.post(backendUrl + '/api/company/login',{email, password})
+      if (mode === "Login") {
+        const { data } = await axios.post(backendUrl + "/api/company/login", {
+          email,
+          password,
+        });
         if (data.success) {
           setCompanyData(data.company);
           setCompanyToken(data.token);
-          localStorage.setItem('companyToken', data.token);
+          localStorage.setItem("companyToken", data.token);
           setShowRecruiterLogin(false);
-          navigate('/dashboard');
-        }
-        else{
+          navigate("/dashboard");
+        } else {
           toast.error(data.message);
         }
-      }else{
-        if (!image) {
-          toast.error('Please upload a company logo.');
+      } else {
+        if (!logo) {
+          toast.error("Please upload a company logo.");
           setLoading(false);
           return;
         }
         const formData = new FormData();
-        formData.append('name', name);
-        formData.append('password', password);
-        formData.append('email', email);
-        formData.append('image', image);
+        formData.append("name", name);
+        formData.append("password", password);
+        formData.append("email", email);
+        formData.append("image", logo);
 
-        const {data} = await axios.post(backendUrl+'/api/company/register', formData)
-
+        const { data } = await axios.post(backendUrl + "/api/company/register", formData);
         if (data.success) {
           setCompanyData(data.company);
           setCompanyToken(data.token);
-          localStorage.setItem('companyToken', data.token);
+          localStorage.setItem("companyToken", data.token);
           setShowRecruiterLogin(false);
-          navigate('/dashboard');
-        }
-        else{
+          navigate("/dashboard");
+        } else {
           toast.error(data.message);
         }
       }
     } catch (error) {
       toast.error(error.message);
     }
+
     setLoading(false);
-  }
+  };
 
-  useEffect(()=>{
-    document.body.style.overflow ='hidden';
-
-    return ()=>{
-      document.body.style.overflow ='unset';
-    }
-  },[])
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
 
   return (
-    <div className="absolute top-0 left-0 right-0 bottom-0 z-10 backdrop-blur-sm bg-black/30 flex items-center justify-center">
-      <form onSubmit={onSubmitHandler} className="relative bg-white p-10 rounded-xl text-slate-500">
-        <h1 className="text-center text-2xl text-neutral-700 font-medium">
-          Recruiter {state}
-        </h1>
-        <p className="text-sm ">Welcome back! Please sign in to continue</p>
-        {
-            state === "Sign Up" && isTextDataSubmitted 
-            ?
-            <>
-                <div className="flex items-center gap-4 my-10">
-                    <label htmlFor="image">
-                        <img className="w-16 h-16 rounded-full object-cover" src={image ?  URL.createObjectURL(image) : assets.upload_area} alt="" />
-                        <input onChange={e=>setImage(e.target.files[0])} type="file" name="" id="image" hidden />    
+    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl">
+        <button
+          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+          onClick={() => setShowRecruiterLogin(false)}
+        >
+          ×
+        </button>
 
-                    </label>
-                    <p>Upload Company <br />logo</p>
-                </div>
-            </>
-            :
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold text-gray-800">Recruiter {mode}</h2>
+          <p className="mt-2 text-sm text-gray-500">Welcome back! Please sign in to continue</p>
+        </div>
+
+        <form onSubmit={onSubmitHandler} className="mt-6 space-y-4">
+          {mode === "Sign Up" && (
             <>
-            {state !== "Login" && (
-              <div className="border px-4 py-2 flex ite gap-2 rounded-full mt-5">
-                <img src={assets.person_icon} alt="" />
+              <div>
+                <label className="text-sm text-gray-600">Company Name</label>
                 <input
-                  className="outline-none text-sm"
+                  className={`${inputClasses} mt-2`}
                   type="text"
-                  placeholder="Company Name"
-                  required
+                  placeholder="Enter company name"
+                  required={mode === "Sign Up"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-            )}
-  
-            <div className="border px-4 py-2 flex ite gap-2 rounded-full mt-5">
-              <img src={assets.email_icon} alt="" />
-              <input
-                className="outline-none text-sm"
-                type="email"
-                placeholder="Email ID"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-  
-            <div className="border px-4 py-2 flex ite gap-2 rounded-full mt-5">
-              <img src={assets.lock_icon} alt="" />
-              <input
-                className="outline-none text-sm"
-                type="password"
-                placeholder="Password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-           
-          </>
-        }
-       
-       {
-        state === "Login" && <p className="text-sm text-blue-500 mt-4 cursor-pointer">
-        Forgot password?
-      </p>
-       }
-        <button type="submit" className="bg-blue-600 w-full text-white py-2 rounded-full mt-4" disabled={loading}>
-          {loading ? (state === "Login" ? "Logging in..." : "Creating account...") : (state === "Login" ? "login" : isTextDataSubmitted ? "create account" : "next")}
-        </button>
-        {state == "Login" ? (
-          <p className="mt-5 text-center">
-            Don't have an account?{" "}
-            <span
-              className="text-blue-500 cursor-pointer"
-              onClick={() => setState("Sign Up")}
-            >
-              Sign Up
-            </span>
-          </p>
-        ) : (
-          <p className="mt-5 text-center">
-            Already have an account?{" "}
-            <span
-              className="text-blue-500 cursor-pointer"
-              onClick={() => setState("Login")}
-            >
-              Login
-            </span>
-          </p>
-        )}
-        <img  onClick={()=>setShowRecruiterLogin(false)} className="absolute top-5 right-5 cursor-pointer" src={assets.cross_icon} alt="" />
-      </form>
+
+              <div>
+                <label className="text-sm text-gray-600">Company Logo</label>
+                <label className="mt-2 flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
+                  {logo ? logo.name : "Upload logo"}
+                  <input type="file" accept="image/*" hidden onChange={handleLogoChange} />
+                </label>
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="text-sm text-gray-600">Email ID</label>
+            <input
+              className={`${inputClasses} mt-2`}
+              type="email"
+              placeholder="Enter email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-600">Password</label>
+            <input
+              className={`${inputClasses} mt-2`}
+              type="password"
+              placeholder="Enter password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          {mode === "Login" && (
+            <button type="button" className="w-full text-left text-sm text-blue-500">
+              Forgot password?
+            </button>
+          )}
+
+          <button
+            type="submit"
+            className="w-full rounded-full bg-blue-600 py-3 text-white font-semibold transition hover:bg-blue-700 disabled:opacity-60"
+            disabled={loading}
+          >
+            {loading ? (mode === "Login" ? "Logging in..." : "Creating account...") : mode === "Login" ? "login" : "Sign Up"}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-sm text-gray-600">
+          {mode === "Login" ? "Don't have an account? " : "Already have an account? "}
+          <button
+            className="font-semibold text-blue-500"
+            onClick={() => setMode(mode === "Login" ? "Sign Up" : "Login")}
+          >
+            {mode === "Login" ? "Sign Up" : "Login"}
+          </button>
+        </p>
+      </div>
     </div>
   );
 };

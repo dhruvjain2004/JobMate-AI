@@ -1,11 +1,11 @@
 import React, { useContext, useEffect, useState } from "react";
-import { NavLink, Outlet, useFetcher, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { assets } from "../assets/assets";
 import { AppContext } from "../context/AppContext";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { companyData, setCompanyData , companyToken, setCompanyToken } = useContext(AppContext);
+  const { companyData, setCompanyData , setCompanyToken } = useContext(AppContext);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   //Function to logout for company

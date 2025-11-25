@@ -1,15 +1,12 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useAuth, useUser } from "@clerk/clerk-react";
 
 export const AppContext = createContext();
 
 export const AppContextProvider = (props) => {
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
-
-  const { user } = useUser();
-  const { getToken } = useAuth();
 
   const [searchFilter, setSearchFilter] = useState({
     title: "",
@@ -25,15 +22,15 @@ export const AppContextProvider = (props) => {
   const [companyToken, setCompanyToken] = useState(null);
   const [companyData, setCompanyData] = useState(null);
 
-  const [userData, setUserData] = useState({});
+  const [userToken, setUserToken] = useState(() => localStorage.getItem("userToken"));
+  const [userData, setUserData] = useState(null);
   const [userApplications, setUserApplications] = useState([]);
 
-  //Fucntion to fetch user data
   const fetchUserData = async () => {
+    if (!userToken) return;
     try {
-      const token = await getToken();
       const { data } = await axios.get(backendUrl + "/api/users/user", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${userToken}` },
       });
       if (data.success) {
         setUserData(data.user);
@@ -45,12 +42,11 @@ export const AppContextProvider = (props) => {
     }
   };
 
-  // Function to fetch users applications data
   const fetchUserApplications = async () => {
+    if (!userToken) return;
     try {
-      const token = await getToken();
       const { data } = await axios.get(backendUrl + "/api/users/applications", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${userToken}` },
       });
       if (data.success) {
         setUserApplications(data.applications.reverse());
@@ -62,13 +58,12 @@ export const AppContextProvider = (props) => {
     }
   };
 
-  //Function to fecth job data
+  //Function to fetch job data
   const fetchJobs = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/jobs");
       if (data.success) {
         setJobs(data.jobs);
-        console.log(data.jobs);
       } else {
         toast.error(data.message);
       }
@@ -77,7 +72,7 @@ export const AppContextProvider = (props) => {
     }
   };
 
-  //Function to fecth company data
+  //Function to fetch company data
   const fetchCompanyData = async () => {
     try {
       const { data } = await axios.get(backendUrl + "/api/company/company", {
@@ -85,13 +80,19 @@ export const AppContextProvider = (props) => {
       });
       if (data.success) {
         setCompanyData(data.company);
-        console.log(data);
       } else {
         toast.error(data.message);
       }
     } catch (error) {
       toast.error(error.message);
     }
+  };
+
+  const logoutUser = () => {
+    setUserToken(null);
+    setUserData(null);
+    setUserApplications([]);
+    localStorage.removeItem("userToken");
   };
 
   useEffect(() => {
@@ -109,11 +110,15 @@ export const AppContextProvider = (props) => {
   }, [companyToken]);
 
   useEffect(() => {
-    if (user) {
+    if (userToken) {
+      localStorage.setItem("userToken", userToken);
       fetchUserData();
       fetchUserApplications();
+    } else {
+      setUserData(null);
+      setUserApplications([]);
     }
-  }, [user]);
+  }, [userToken]);
 
   const value = {
     setSearchFilter,
@@ -135,6 +140,9 @@ export const AppContextProvider = (props) => {
     setUserApplications,
     fetchUserData,
     fetchUserApplications,
+    userToken,
+    setUserToken,
+    logoutUser,
   };
 
   return (

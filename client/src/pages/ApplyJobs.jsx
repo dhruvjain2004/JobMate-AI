@@ -10,22 +10,15 @@ import moment from "moment";
 import Footer from "../components/Footer";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useAuth } from "@clerk/clerk-react";
 
 const ApplyJobs = () => {
   const { id } = useParams();
-  const { getToken } = useAuth();
 
   const navigate = useNavigate();
   const [jobData, setJobData] = useState(null);
   const [isApplied, setIsApplied] = useState(false);
-  const {
-    jobs,
-    backendUrl,
-    userData,
-    userApplications,
-    fetchUserApplications,
-  } = useContext(AppContext);
+  const { jobs, backendUrl, userData, userApplications, fetchUserApplications, userToken } =
+    useContext(AppContext);
 
   const fetchJob = async () => {
     try {
@@ -42,8 +35,11 @@ const ApplyJobs = () => {
 
   const applyHandler = async () => {
     try {
-      if (!userData || Object.keys(userData).length === 0) {
+      if (!userToken) {
         return toast.error("Please log in to apply for jobs.");
+      }
+      if (!userData) {
+        return toast.error("Loading your profile details. Please try again shortly.");
       }
       if (!userData.resume) {
         navigate("/applications");
@@ -52,11 +48,10 @@ const ApplyJobs = () => {
       if (isApplied) {
         return toast.warn("You have already applied for this job.");
       }
-      const token = await getToken();
       const { data } = await axios.post(
         backendUrl + "/api/users/apply",
         { jobId: jobData._id },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${userToken}` } }
       );
       if (data.success) {
         toast.success(data.message);

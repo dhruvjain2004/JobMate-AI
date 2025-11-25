@@ -4,25 +4,18 @@ import { assets } from "../assets/assets";
 import moment from "moment";
 import Footer from "../components/Footer";
 import { AppContext } from "../context/AppContext";
-import { useAuth, useUser } from "@clerk/clerk-react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import Loading from "../components/Loading";
+import { Link } from "react-router-dom";
 
 const Applications = () => {
   const [isEdit, setIsEdit] = useState(false);
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const { user } = useUser();
-  const { getToken } = useAuth();
-  const {
-    backendUrl,
-    userData,
-    userApplications,
-    fetchUserData,
-    fetchUserApplications,
-  } = useContext(AppContext);
+  const { backendUrl, userData, userApplications, fetchUserData, fetchUserApplications, userToken } =
+    useContext(AppContext);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -35,20 +28,18 @@ const Applications = () => {
   };
 
   const updateResume = async () => {
+    if (!userToken) {
+      return toast.error("Please login to update your resume.");
+    }
     try {
       const formData = new FormData();
       formData.append("resume", resume);
 
-      const token = await getToken();
-      const { data } = await axios.post(
-        `${backendUrl}/api/users/update-resume`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const { data } = await axios.post(`${backendUrl}/api/users/update-resume`, formData, {
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
 
       if (data.success) {
         toast.success(data.message);
@@ -65,13 +56,33 @@ const Applications = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (userToken) {
       fetchUserApplications().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
-  }, [user]);
+  }, [userToken]);
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (!userToken) {
+    return (
+      <>
+        <Navbar />
+        <div className="container px-4 min-h-[50vh] mx-auto flex items-center justify-center text-center">
+          <p className="text-gray-600 text-lg">
+            Please{" "}
+            <Link to="/login" className="text-blue-600 font-semibold">
+              login
+            </Link>{" "}
+            to view your applications.
+          </p>
+        </div>
+        <Footer />
+      </>
+    );
   }
 
   return (

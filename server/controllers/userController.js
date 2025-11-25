@@ -5,24 +5,11 @@ import { v2 as cloudinary } from "cloudinary";
 
 //Get user data
 export const getUserData = async (req, res) => {
-  const userId = req.auth().userId;
-  // Try to get Clerk info from the request (if available)
-  const clerkInfo = req.auth();
-
   try {
-    let user = await User.findById(userId);
-
+    const user = await User.findById(req.user._id).select("-password");
     if (!user) {
-      // Auto-create user if not found, using Clerk info
-      user = new User({
-        _id: userId,
-        name: clerkInfo?.name || "New User",
-        email: clerkInfo?.email || (clerkInfo?.sessionClaims?.email) || (clerkInfo?.sessionClaims?.primary_email_address) || (clerkInfo?.sessionClaims?.username) || (userId + "@example.com"),
-        image: clerkInfo?.imageUrl || clerkInfo?.avatar || "https://ui-avatars.com/api/?name=User",
-      });
-      await user.save();
+      return res.json({ success: false, message: "User not found." });
     }
-
     res.json({ success: true, user });
   } catch (error) {
     res.json({
@@ -32,10 +19,10 @@ export const getUserData = async (req, res) => {
   }
 };
 
-//apply for a jib
+//apply for a job
 export const applyForJob = async (req, res) => {
   const { jobId } = req.body;
-  const userId = req.auth().userId;
+  const userId = req.user._id;
   try {
     const isAlreadyApplied = await JobApplication.find({ jobId, userId });
     if (isAlreadyApplied.length > 0) {
@@ -74,7 +61,7 @@ export const applyForJob = async (req, res) => {
 //Get user applied applications
 export const getUserJobApplications = async (req, res) => {
   try {
-    const userId = req.auth().userId;
+    const userId = req.user._id;
 
     const applications = await JobApplication.find({ userId })
       .populate("companyId", "name email image")
@@ -98,32 +85,32 @@ export const getUserJobApplications = async (req, res) => {
 //update user profile (resume)
 export const updateUserResume = async (req, res) => {
   try {
-    const userId = req.auth().userId;
+    const userId = req.user._id;
 
     const resumeFile = req.file;
 
     const userData = await User.findById(userId);
-    
+
     if (resumeFile) {
       // Convert buffer to base64 string for Cloudinary upload
-      const b64 = Buffer.from(resumeFile.buffer).toString('base64');
+      const b64 = Buffer.from(resumeFile.buffer).toString("base64");
       const dataURI = `data:${resumeFile.mimetype};base64,${b64}`;
-      
+
       const resumeUpload = await cloudinary.uploader.upload(dataURI, {
-        resource_type: 'auto',
-        folder: 'resumes'
+        resource_type: "auto",
+        folder: "resumes",
       });
-      
+
       userData.resume = resumeUpload.secure_url;
     }
-    
+
     await userData.save();
     res.json({
       success: true,
       message: "Resume updated",
     });
   } catch (error) {
-    console.error('Resume upload error:', error);
+    console.error("Resume upload error:", error);
     res.json({
       success: false,
       message: error.message,

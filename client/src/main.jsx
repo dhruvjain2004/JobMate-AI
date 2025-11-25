@@ -4,23 +4,22 @@ import "./index.css";
 import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
 import { AppContextProvider } from "./context/AppContext.jsx";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
-// Import your Publishable Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing Publishable Key");
+if (!GOOGLE_CLIENT_ID) {
+  throw new Error("Missing Google Client ID");
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <BrowserRouter>
         <AppContextProvider>
           <App />
         </AppContextProvider>
       </BrowserRouter>
-    </ClerkProvider>
+    </GoogleOAuthProvider>
   </React.StrictMode>
 );
