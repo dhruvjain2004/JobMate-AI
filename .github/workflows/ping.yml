@@ -2,8 +2,8 @@ name: Ping MongoDB Atlas Weekly
 
 on:
   schedule:
-    - cron: "0 0 * * 0"    # Runs every Sunday at 00:00 UTC (weekly)
-  workflow_dispatch:        # Allows manual trigger
+    - cron: "0 0 * * 0"   # every Sunday 00:00 UTC
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -23,4 +23,4 @@ jobs:
       - name: Run ping script
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: node ping-mongo.js
+        run: node server/scripts/ping-mongo.js
