@@ -1,0 +1,26 @@
+name: Ping MongoDB Atlas Weekly
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"    # Runs every Sunday at 00:00 UTC (weekly)
+  workflow_dispatch:        # Allows manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install MongoDB driver
+        run: npm install mongodb
+
+      - name: Run ping script
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: node ping-mongo.js
