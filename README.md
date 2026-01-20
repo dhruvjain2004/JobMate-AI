@@ -1,6 +1,6 @@
-# NaukriVerse - A Job Portal
+# JobMate AI - A Job Portal
 
-NaukriVerse is a full-featured job portal web application that connects job seekers with top companies. It allows users to search and apply for jobs, while recruiters can post and manage job listings. The platform features custom authentication, comprehensive user profiles, and admin controls. The platform is designed for a seamless, modern experience for both candidates and recruiters.
+JobMate AI is a full-featured job portal web application that connects job seekers with top companies. It allows users to search and apply for jobs, while recruiters can post and manage job listings. The platform features custom authentication, comprehensive user profiles, and admin controls. The platform is designed for a seamless, modern experience for both candidates and recruiters.
 
 ---
 
@@ -99,7 +99,7 @@ Job-Portal/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/dhruvjain2004/NaukriVerse.git
+git clone https://github.com/dhruvjain2004/JobMate-AI.git
 cd Job-Portal
 ```
 
