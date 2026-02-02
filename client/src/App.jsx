@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import ApplyJob from "./pages/ApplyJobs";
 import Applications from "./pages/Applications";
 import RecruiterLogin from "./components/RecruiterLogin";
+import ChatWidget from "./components/ChatWidget";
 import { AppContext } from "./context/AppContext";
 import Dashboard from "./pages/Dashboard";
 import AddJob from "./pages/AddJob";
@@ -23,6 +24,7 @@ const App = () => {
   return (
     <div>
       {showRecruiterLogin && <RecruiterLogin />}
+      <ChatWidget />
       <ToastContainer />
       <Routes>
         <Route path="/" element={<Home />} />
