@@ -42,7 +42,17 @@ const callMLService = async (endpoint, data) => {
     return response.data;
   } catch (error) {
     console.error(`ML Service Error (${endpoint}):`, error.message);
-    throw new Error(`ML service unavailable: ${error.message}`);
+    
+    // Return fallback response instead of throwing error
+    return {
+      success: false,
+      data: {
+        response: "I'm currently unable to process your request as the ML service is not available. Please try again later or contact support.",
+        intent: "error",
+        suggestions: ["Try again later", "Contact support"]
+      },
+      error: "ML service unavailable"
+    };
   }
 };
 
