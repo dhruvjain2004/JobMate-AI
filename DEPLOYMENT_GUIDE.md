@@ -118,7 +118,7 @@ npm run dev
 2. Create a free cluster
 3. Add database user
 4. Whitelist IP addresses (0.0.0.0/0 for development)
-5. Get connection string: `mongodb+srv://username:password@cluster.mongodb.net/jobmate`
+5. Get connection string: ---
 
 #### B. Deploy Python ML Service (Railway)
 
