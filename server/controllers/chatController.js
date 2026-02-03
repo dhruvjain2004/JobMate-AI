@@ -1,19 +1,22 @@
 import axios from "axios";
 import crypto from "crypto";
-import mongoose from "mongoose"; // ✅ REQUIRED
+import mongoose from "mongoose";
+
 import ChatConversation from "../models/ChatConversation.js";
 import ChatMessage from "../models/ChatMessage.js";
 import MLAnalysis from "../models/MLAnalysis.js";
 import User from "../models/user.js";
 import Job from "../models/Job.js";
 
-// ML Service Configuration
+// ============================
+// ML SERVICE CONFIG
+// ============================
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 const SHARED_SECRET = process.env.SHARED_SECRET;
 
-/**
- * Generate HMAC signature for ML service authentication
- */
+// ============================
+// HELPERS
+// ============================
 const generateSignature = () => {
   const timestamp = Date.now().toString();
   const signature = crypto
@@ -24,9 +27,6 @@ const generateSignature = () => {
   return { signature, timestamp };
 };
 
-/**
- * Call ML service with authentication
- */
 const callMLService = async (endpoint, data) => {
   const { signature, timestamp } = generateSignature();
 
@@ -46,19 +46,16 @@ const callMLService = async (endpoint, data) => {
   return response.data;
 };
 
-/**
- * Get or create conversation
- */
+// ============================
+// CONVERSATIONS
+// ============================
 export const getOrCreateConversation = async (req, res) => {
   try {
     const { conversationId, type = "general", jobId } = req.body;
     const userId = req.userId;
 
     if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: "userId is required",
-      });
+      return res.status(400).json({ success: false, message: "userId is required" });
     }
 
     let conversation = null;
@@ -83,7 +80,7 @@ export const getOrCreateConversation = async (req, res) => {
       }
 
       conversation = await ChatConversation.create({
-        userId: new mongoose.Types.ObjectId(userId), // ✅ FIX
+        userId: new mongoose.Types.ObjectId(userId),
         type,
         context,
         status: "active",
@@ -99,42 +96,94 @@ export const getOrCreateConversation = async (req, res) => {
   }
 };
 
-/**
- * Send chat message
- */
+export const getConversationHistory = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.userId;
+
+    const conversation = await ChatConversation.findOne({
+      _id: conversationId,
+      userId,
+      status: "active",
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    const messages = await ChatMessage.find({ conversationId })
+      .sort({ createdAt: 1 });
+
+    res.json({
+      success: true,
+      data: { conversation, messages },
+    });
+  } catch (error) {
+    console.error("Get Conversation History Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getUserConversations = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const conversations = await ChatConversation.find({
+      userId,
+      status: "active",
+    }).sort({ lastMessageAt: -1 });
+
+    res.json({ success: true, data: conversations });
+  } catch (error) {
+    console.error("Get User Conversations Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.userId;
+
+    const conversation = await ChatConversation.findOneAndUpdate(
+      { _id: conversationId, userId },
+      { status: "deleted" },
+      { new: true }
+    );
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    res.json({ success: true, message: "Conversation deleted successfully" });
+  } catch (error) {
+    console.error("Delete Conversation Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ============================
+// CHAT
+// ============================
 export const sendMessage = async (req, res) => {
   try {
     const { conversationId, message, context = {} } = req.body;
     const userId = req.userId;
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: "userId is required",
-      });
+    if (!userId || !message?.trim()) {
+      return res.status(400).json({ success: false, message: "Invalid request" });
     }
 
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Message is required",
-      });
-    }
-
-    let conversation = null;
-
-    if (conversationId) {
-      conversation = await ChatConversation.findOne({
-        _id: conversationId,
-        userId,
-        status: "active",
-      });
-    }
+    let conversation = await ChatConversation.findOne({
+      _id: conversationId,
+      userId,
+      status: "active",
+    });
 
     if (!conversation) {
       conversation = await ChatConversation.create({
-        userId: new mongoose.Types.ObjectId(userId), // ✅ FIX
-        type: context.type || "general",
+        userId: new mongoose.Types.ObjectId(userId),
+        type: "general",
         context,
         status: "active",
         messages: [],
@@ -150,10 +199,9 @@ export const sendMessage = async (req, res) => {
     });
 
     let assistantMessage;
-
     try {
       const mlResponse = await callMLService("/api/ml/chat", {
-        userId: userId.toString(),
+        userId,
         message,
         conversationId: conversation._id.toString(),
         context,
@@ -164,16 +212,14 @@ export const sendMessage = async (req, res) => {
         userId,
         role: "assistant",
         content: mlResponse?.data?.response || "I’m here to help!",
-        intent: mlResponse?.data?.intent,
         suggestions: mlResponse?.data?.suggestions,
       });
-    } catch (err) {
+    } catch {
       assistantMessage = await ChatMessage.create({
         conversationId: conversation._id,
         userId,
         role: "assistant",
-        content:
-          "Sorry, I’m having trouble right now. Please try again in a moment.",
+        content: "ML service unavailable. Please try again later.",
       });
     }
 
@@ -184,14 +230,43 @@ export const sendMessage = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        conversationId: conversation._id,
-        userMessage,
-        assistantMessage,
-      },
+      data: { conversationId: conversation._id, userMessage, assistantMessage },
     });
   } catch (error) {
     console.error("Send Message Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// ============================
+// ML FEATURES
+// ============================
+export const calculateATSScore = async (req, res) => {
+  try {
+    const { resumeText, jobSkills } = req.body;
+
+    const mlResponse = await callMLService("/api/ml/ats-score", {
+      resumeText,
+      jobSkills,
+    });
+
+    res.json({ success: true, data: mlResponse.data });
+  } catch (error) {
+    console.error("ATS Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const explainJobMatch = async (req, res) => {
+  res.json({
+    success: true,
+    data: { message: "Job match explanation coming soon" },
+  });
+};
+
+export const getCareerPath = async (req, res) => {
+  res.json({
+    success: true,
+    data: { message: "Career path guidance coming soon" },
+  });
 };
