@@ -42,17 +42,7 @@ const callMLService = async (endpoint, data) => {
     return response.data;
   } catch (error) {
     console.error(`ML Service Error (${endpoint}):`, error.message);
-    
-    // Return fallback response instead of throwing error
-    return {
-      success: false,
-      data: {
-        response: "I'm currently unable to process your request as the ML service is not available. Please try again later or contact support.",
-        intent: "error",
-        suggestions: ["Try again later", "Contact support"]
-      },
-      error: "ML service unavailable"
-    };
+    throw new Error(`ML service unavailable: ${error.message}`);
   }
 };
 
@@ -218,23 +208,39 @@ export const sendMessage = async (req, res) => {
     });
 
     // Call ML service for response
-    const mlResponse = await callMLService("/api/ml/chat", {
-      userId: userId.toString(),
-      message,
-      conversationId: conversation._id.toString(),
-      context,
-    });
+    let assistantMessage;
+    try {
+      const mlResponse = await callMLService("/api/ml/chat", {
+        userId: userId.toString(),
+        message,
+        conversationId: conversation._id.toString(),
+        context,
+      });
 
-    // Save assistant response
-    const assistantMessage = await ChatMessage.create({
-      conversationId: conversation._id,
-      userId,
-      role: "assistant",
-      content: mlResponse.data.response,
-      intent: mlResponse.data.intent,
-      suggestions: mlResponse.data.suggestions,
-      mlData: mlResponse.data.mlData,
-    });
+      if (!mlResponse?.data?.response) {
+        throw new Error("Invalid response from ML service");
+      }
+
+      // Save assistant response
+      assistantMessage = await ChatMessage.create({
+        conversationId: conversation._id,
+        userId,
+        role: "assistant",
+        content: mlResponse.data.response,
+        intent: mlResponse.data.intent,
+        suggestions: mlResponse.data.suggestions,
+        mlData: mlResponse.data.mlData,
+      });
+    } catch (mlError) {
+      console.error("ML Service Interaction Error:", mlError.message);
+      // Fallback message if ML service fails
+      assistantMessage = await ChatMessage.create({
+        conversationId: conversation._id,
+        userId,
+        role: "assistant",
+        content: "Sorry, I'm having trouble connecting to my brain right now. Please try again in a moment.",
+      });
+    }
 
     // Update conversation
     await ChatConversation.findByIdAndUpdate(conversation._id, {

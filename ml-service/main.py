@@ -257,7 +257,8 @@ async def chat_interaction(
         logger.info(f"Processing chat message for user {request.userId}")
         
         message_lower = request.message.lower()
-        context_type = request.context.get('type', '')
+        context = request.context or {}
+        context_type = context.get('type', '')
         
         # Determine intent
         if any(keyword in message_lower for keyword in ['match', 'job', 'apply', 'qualify', 'rejected']):
@@ -270,12 +271,21 @@ async def chat_interaction(
             intent = 'general'
         
         # Generate response based on intent
-        if intent == 'job_match' and request.context.get('jobId'):
-            response = _handle_job_match_query(request)
+        if intent == 'job_match' and context.get('jobId'):
+            response = (
+                "To analyze your match for a specific job, please use the 'Analyze Match' button on the job details page. "
+                "This will give me the context I need to provide a detailed explanation."
+            )
         elif intent == 'career_guidance':
-            response = _handle_career_query(request)
+            response = (
+                "I can provide career guidance. To start, you can ask me to 'predict my career path' or 'show me skills to learn'. "
+                "For a detailed analysis, please use the 'Career Path' feature."
+            )
         else:
-            response = _handle_general_query(request)
+            response = (
+                "Hello! I'm JobMate AI. I can help you with job matching, career guidance, and resume analysis. "
+                "What would you like to explore?"
+            )
         
         return {
             "success": True,
@@ -288,7 +298,8 @@ async def chat_interaction(
         }
     
     except Exception as e:
-        logger.error(f"Error in chat_interaction: {str(e)}")
+        import traceback
+        logger.error(f"Error in chat_interaction: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 
@@ -414,36 +425,6 @@ def _generate_conversational_career_response(career_result: Dict[str, Any]) -> s
         response_parts.append(f"\n\n💡 {career_result['recommendations'][0]}")
     
     return "".join(response_parts)
-
-
-def _handle_job_match_query(request: ChatMessageRequest) -> str:
-    """Handle job match related queries"""
-    return (
-        "I can help you understand your job match! "
-        "I analyze your resume against job requirements using AI and provide detailed explanations. "
-        "Would you like me to analyze a specific job posting for you?"
-    )
-
-
-def _handle_career_query(request: ChatMessageRequest) -> str:
-    """Handle career guidance queries"""
-    return (
-        "I can help you plan your career path! "
-        "I use machine learning to predict your next career moves, identify skill gaps, "
-        "and recommend learning paths. What would you like to know about your career growth?"
-    )
-
-
-def _handle_general_query(request: ChatMessageRequest) -> str:
-    """Handle general queries"""
-    return (
-        "Hello! I'm JobMate AI, your intelligent career assistant. "
-        "I can help you with:\n\n"
-        "1. 🎯 Job Match Analysis - Understand why you match or don't match a job\n"
-        "2. 🚀 Career Path Guidance - Plan your next career move\n"
-        "3. 📄 Resume ATS Score - Check how well your resume performs\n\n"
-        "What would you like to explore?"
-    )
 
 
 def _generate_suggestions(intent: str) -> List[str]:
