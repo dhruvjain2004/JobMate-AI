@@ -96,7 +96,7 @@ def verify_request_signature(
     x_timestamp: Optional[str] = Header(None)
 ) -> bool:
 
-    if settings.ENVIRONMENT in ["development", "production"]:
+    if settings.ENVIRONMENT == "development":
         return True
 
 
