@@ -257,69 +257,61 @@ npm run dev
 
 ---
 
-## 🤖 AI Integration & Future Enhancements
+## 🤖 AI Integration (Implemented)
 
-NaukriVerse is designed with AI capabilities in mind for future advancements. The platform architecture supports seamless integration of AI-powered features to enhance user experience and streamline recruitment processes.
+The project now includes a production-ready **AI Chatbot** microservice that is integrated with the backend and addresses two concrete research problems:
 
-### Planned AI Features
+### ✅ 1) Explainable AI for Job Matching (XAI)
+- Problem: Users don’t know why they were rejected or recommended.
+- Role: When a user asks questions such as "Why wasn't I shortlisted?" the chatbot provides an explainable match analysis including:
+  - Matched and missing skills
+  - Experience gap (required vs candidate)
+  - Overall resume match score and TF-IDF similarity
+  - Suggested actions (projects, certifications, experience recommendations)
+- How to invoke:
+  - POST /api/ml/chat with JSON: { userId, message: "Why was I rejected?", resumeText, jobDescription, jobSkills, requiredExperience }
+  - Or use backend endpoints: `/api/chat/message` — the server will attach user resume and job details automatically when available.
+- Response: `{ success:true, data: { response: <human-summary>, intent: "explain_match", details: { overall_match_score, matched_skills, missing_skills, explanation, ... } } }`
 
-#### 🤖 AI Chatbot Assistant
-- **24/7 Support Chatbot** - Intelligent virtual assistant to help users:
-  - Answer questions about job listings and application processes
-  - Provide career guidance and job search tips
-  - Assist with profile optimization suggestions
-  - Help recruiters with job posting best practices
-  - Handle common queries and FAQs
+### ✅ 2) Career Path Guidance
+- Problem: Users need personalized, actionable career advice.
+- Role: Chatbot acts as a career advisor; e.g., "What should I do after Java Developer?" returns:
+  - Suggested next roles (rule-based + ML predictions)
+  - Learning path (skills to acquire, priorities)
+  - Estimated timeline and salary growth
+  - Practical recommendations
+- How to invoke:
+  - POST /api/ml/chat with JSON: { userId, message: "What should I do after Java Developer?", currentRole, skills, experienceYears }
+- Response: `{ success:true, data: { response: <summary>, intent: "career_guidance", details: { predicted_roles, learning_path, salary_growth, timeline, recommendations } } }`
 
-#### 🎯 AI-Powered Job Matching
-- **Smart Job Recommendations** - Machine learning algorithms to:
-  - Match candidates with the most relevant job opportunities based on skills, experience, and preferences
-  - Analyze job descriptions and candidate profiles for better compatibility
-  - Provide personalized job suggestions in real-time
-  - Improve match accuracy over time with user feedback
+### Security & Service Integration
+- The ML microservice verifies HMAC-SHA256 signatures on incoming requests (headers: `X-Signature`, `X-Timestamp`).
+- Required env vars:
+  - `SHARED_SECRET` (must be identical on backend and ML service)
+  - `ML_SERVICE_URL` (backend → ML service endpoint)
+- Health endpoint (`GET /api/ml/health`) exposes:
+  - `signature_required` and `shared_secret_configured` fields to help deployments verify config.
+- Local test helper: `ml-service/scripts/test_signed_request.py` — use this to send a signed test POST and verify the ML service accepts the signature.
+- Debug endpoint (temporary): `/api/ml/debug/expected-prefix?ts=<timestamp>` can be enabled via env `ENABLE_DEBUG_SIGNATURE_ENDPOINT=true` to inspect expected signature prefixes while debugging. Disable it after use.
 
-#### ✍️ AI Resume & Profile Optimization
-- **Resume Analyzer** - AI tools to:
-  - Analyze and score resumes for ATS (Applicant Tracking System) compatibility
-  - Suggest improvements for better visibility
-  - Identify missing keywords and skills
-  - Provide personalized recommendations for profile enhancement
+### Behavior on failures
+- If the ML service is unreachable or returns an error, the backend falls back to an assistant message: "ML service unavailable. Please try again later." and logs detailed error information for diagnosis.
 
-#### 📊 AI Analytics & Insights
-- **Recruitment Analytics** - AI-driven insights for recruiters:
-  - Predict application success rates
-  - Analyze market trends and salary benchmarks
-  - Identify best-performing job descriptions
-  - Optimize job posting strategies
+### Deployment notes
+- On Render (or other hosting): ensure `SHARED_SECRET` is set identically for both services and redeploy ML first, then backend.
+- For production, use a strong secret (e.g., `openssl rand -hex 32`) and do not commit it to the repo.
 
-#### 🔍 AI-Powered Search
-- **Semantic Job Search** - Natural language processing for:
-  - Understanding search intent beyond keywords
-  - Contextual job matching
-  - Intelligent filtering and sorting
-  - Voice-activated job search
+---
 
-#### 💬 AI Interview Assistant
-- **Interview Preparation** - AI tools to help candidates:
-  - Practice interviews with AI-powered mock interviews
-  - Get feedback on responses
-  - Receive industry-specific interview questions
-  - Improve communication skills
+## 🔬 Research and Evaluation
+- The system is designed for a follow-up research paper and includes:
+  - Example conversational transcripts for explainability and career guidance
+  - Unit tests for the chat behaviors (`ml-service/tests/test_chat_ai.py`)
+  - A reproducibility checklist (add `REPRODUCE.md` for exact experiments)
 
-### Technical Integration Points
+---
 
-The platform is structured to support AI integration through:
-- **RESTful API endpoints** ready for AI service integration
-- **Modular architecture** allowing easy addition of AI services
-- **Data models** designed to store AI-generated insights and recommendations
-- **Scalable backend** capable of handling AI processing workloads
-
-### Potential AI Services & Tools
-- OpenAI GPT models for chatbot and content generation
-- TensorFlow/PyTorch for machine learning models
-- Natural Language Processing (NLP) libraries
-- Computer Vision for document analysis
-- Recommendation system frameworks
+## 🤝 Contributing
 
 ---
 
