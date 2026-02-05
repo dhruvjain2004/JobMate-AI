@@ -43,7 +43,7 @@ const companySeeds = [
     email: "jobs@meta.com",
     password: "Meta@123",
     image:
-      "https://upload.wikimedia.org/wikipedia/commons/0/05/Meta_Platforms_Inc._logo.svg",
+      "https://www.uctoday.com/wp-content/uploads/2021/12/What-is-Meta.jpg",
   },
 ];
 
