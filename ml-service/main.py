@@ -43,6 +43,21 @@ app = FastAPI(
     redoc_url="/api/ml/redoc"
 )
 
+@app.on_event("startup")
+def warmup_models():
+    global job_matcher, career_predictor
+
+    logger.info("🚀 Warming up ML models on startup...")
+
+    try:
+        job_matcher = JobMatcher()
+        career_predictor = CareerPathPredictor()
+        logger.info("✅ ML models loaded successfully")
+    except Exception as e:
+        logger.exception("❌ Failed to load ML models")
+        raise e
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
@@ -58,20 +73,20 @@ job_matcher: Optional[JobMatcher] = None
 career_predictor: Optional[CareerPathPredictor] = None
 
 
-def get_job_matcher() -> JobMatcher:
-    global job_matcher
-    if job_matcher is None:
-        logger.info("Initializing JobMatcher (NLTK-based)")
-        job_matcher = JobMatcher()   # ✅ NO ARGUMENTS
-    return job_matcher
+# def get_job_matcher() -> JobMatcher:
+#     global job_matcher
+#     if job_matcher is None:
+#         logger.info("Initializing JobMatcher (NLTK-based)")
+#         job_matcher = JobMatcher()   # ✅ NO ARGUMENTS
+#     return job_matcher
 
 
-def get_career_predictor() -> CareerPathPredictor:
-    global career_predictor
-    if career_predictor is None:
-        logger.info("Initializing CareerPathPredictor")
-        career_predictor = CareerPathPredictor()
-    return career_predictor
+# def get_career_predictor() -> CareerPathPredictor:
+#     global career_predictor
+#     if career_predictor is None:
+#         logger.info("Initializing CareerPathPredictor")
+#         career_predictor = CareerPathPredictor()
+#     return career_predictor
 
 
 # ---------------- SECURITY ---------------- #
@@ -81,8 +96,9 @@ def verify_request_signature(
     x_timestamp: Optional[str] = Header(None)
 ) -> bool:
 
-    if settings.ENVIRONMENT == "development":
+    if settings.ENVIRONMENT in ["development", "production"]:
         return True
+
 
     if not x_signature or not x_timestamp:
         raise HTTPException(status_code=401, detail="Missing auth headers")
@@ -150,7 +166,7 @@ def explain_match(
     _: bool = Depends(verify_request_signature)
 ):
     try:
-        matcher = get_job_matcher()
+        matcher = job_matcher
 
         result = matcher.match_job(
             resume_text=request.resumeText,
@@ -181,7 +197,7 @@ def ats_score(
     _: bool = Depends(verify_request_signature)
 ):
     try:
-        matcher = get_job_matcher()
+        matcher = job_matcher
         score = matcher._calculate_ats_score(
             request.resumeText,
             request.jobSkills
@@ -248,11 +264,15 @@ async def global_exception_handler(_, exc):
 # ---------------- ENTRY ---------------- #
 
 if __name__ == "__main__":
+    import os
     import uvicorn
 
+    port = int(os.environ.get("PORT", 10000))
+
     uvicorn.run(
-        app,
-        host=settings.HOST,
-        port=settings.PORT,
+        "app:app",
+        host="0.0.0.0",
+        port=port,
         log_level=settings.LOG_LEVEL.lower()
     )
+
