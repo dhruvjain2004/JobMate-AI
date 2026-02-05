@@ -13,6 +13,7 @@ import hashlib
 import sys
 
 from loguru import logger
+import os
 
 from config import settings
 from models.job_matcher import JobMatcher
@@ -120,8 +121,9 @@ def verify_request_signature(
     ).hexdigest()
 
     if not hmac.compare_digest(expected, x_signature):
+        # Use loguru-style formatting to ensure prefixes are rendered correctly
         logger.warning(
-            "verify_request_signature - signature mismatch. received_prefix=%s expected_prefix=%s timestamp=%s",
+            "verify_request_signature - signature mismatch. received_prefix={} expected_prefix={} timestamp={}",
             (x_signature[:8] if x_signature else None), expected[:8], x_timestamp
         )
         # Expose a clear but non-sensitive message
@@ -189,6 +191,25 @@ def health():
         "signature_required": settings.ENVIRONMENT != "development",
         "shared_secret_configured": not _is_shared_secret_placeholder()
     }
+
+
+# Debug endpoint to help diagnose signature mismatches. Disabled by default; enable by
+# setting ENABLE_DEBUG_SIGNATURE_ENDPOINT=true in env (use only temporarily).
+@app.get("/api/ml/debug/expected-prefix")
+def debug_expected_prefix(ts: str):
+    if not (os.environ.get("ENABLE_DEBUG_SIGNATURE_ENDPOINT") in ["1", "true", "True"]):
+        raise HTTPException(status_code=403, detail="Debug endpoint disabled")
+
+    if not ts:
+        raise HTTPException(status_code=400, detail="Missing ts query parameter")
+
+    expected = hmac.new(
+        settings.SHARED_SECRET.encode(),
+        ts.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    return {"expected_prefix": expected[:8], "timestamp": ts}
 
 
 @app.post("/api/ml/explain-match")
