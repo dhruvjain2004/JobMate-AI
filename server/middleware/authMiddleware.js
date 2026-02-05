@@ -8,9 +8,10 @@ const extractBearerToken = (authorizationHeader = "") => {
 };
 
 export const protectCompany = async (req, res, next) => {
-  const token = req.headers.token;
+  // Accept either a raw `token` header or `Authorization: Bearer <token>`
+  const token = req.headers.token || extractBearerToken(req.headers.authorization || "");
   if (!token) {
-    return res.json({ success: false, message: "Unautorized, Login Again" });
+    return res.status(401).json({ success: false, message: "Unauthorized, please login again." });
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -18,24 +19,25 @@ export const protectCompany = async (req, res, next) => {
     req.userId = decoded.id;
     next();
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(401).json({ success: false, message: error.message });
   }
 };
 
 export const protectUser = async (req, res, next) => {
   const bearer = extractBearerToken(req.headers.authorization || "");
   if (!bearer) {
-    return res.json({ success: false, message: "Unauthorized, please login again." });
+    return res.status(401).json({ success: false, message: "Unauthorized, please login again." });
   }
   try {
     const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
-      return res.json({ success: false, message: "User not found." });
+      return res.status(404).json({ success: false, message: "User not found." });
     }
     req.user = user;
+    req.userId = decoded.id; // ensure controllers relying on req.userId work
     next();
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.status(401).json({ success: false, message: error.message });
   }
 };
