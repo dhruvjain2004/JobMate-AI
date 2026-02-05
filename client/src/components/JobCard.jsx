@@ -9,12 +9,44 @@ const JobCard = ({job}) => {
   return (
     <div className='border p-3 sm:p-6 shadow rounded'>
         <div className='flex justify-between items-center'>
-            <img
-              className='h-8 w-8 sm:h-10 sm:w-10 object-contain bg-gray-100 rounded'
-              src={job.companyId?.image || '/default-company.png'}
-              alt={job.companyId?.name || 'Company'}
-              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-company.png'; }}
-            />
+            {/* Compute a safe display src: for Wikimedia SVGs generate a PNG thumbnail fallback to avoid SVG hotlink/display issues */}
+            {(() => {
+              const raw = job.companyId?.image || '/default-company.png';
+              let displaySrc = raw;
+
+              try {
+                const url = new URL(raw);
+                if (url.hostname.includes('upload.wikimedia.org') && raw.endsWith('.svg')) {
+                  // Create Wikimedia PNG thumbnail path (200px)
+                  const parts = url.pathname.split('/').filter(Boolean);
+                  const fileName = parts[parts.length - 1]; // e.g., Meta_Platforms_Inc._logo.svg
+                  const pathWithoutCommons = parts.slice(parts.indexOf('commons') + 1).join('/');
+                  displaySrc = `${url.origin}/wikipedia/commons/thumb/${pathWithoutCommons}/200px-${fileName}.png`;
+                }
+              } catch (e) {
+                // ignore malformed urls and use raw
+                displaySrc = raw;
+              }
+
+              return (
+                <>
+                  <img
+                    className='h-8 w-8 sm:h-10 sm:w-10 object-contain bg-gray-100 rounded'
+                    src={displaySrc}
+                    alt={job.companyId?.name || 'Company'}
+                    title={displaySrc}
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-company.png'; }}
+                  />
+
+                  {/* DEV: show URL for debugging (visible only in dev builds) */}
+                  {import.meta.env.DEV && (
+                    <small className='ml-2 text-xs text-gray-400 break-all max-w-[160px]'>
+                      {job.companyId?.image}
+                    </small>
+                  )}
+                </>
+              );
+            })()}
         </div>
         <h4 className='font-medium text-base sm:text-xl mt-2'>{job.title}</h4>
         <div className='flex flex-wrap items-center gap-2 sm:gap-3 mt-2 text-xs'>
