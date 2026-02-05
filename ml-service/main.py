@@ -134,6 +134,19 @@ class ChatMessageRequest(BaseModel):
     conversationId: Optional[str] = None
     context: Optional[Dict[str, Any]] = {}
 
+    # Optional structured fields to support explainability & career guidance
+    resumeText: Optional[str] = None
+    jobDescription: Optional[str] = None
+    jobSkills: Optional[List[str]] = None
+    requiredExperience: Optional[float] = None
+    jobTitle: Optional[str] = None
+
+    currentRole: Optional[str] = None
+    skills: Optional[List[str]] = None
+    experienceYears: Optional[float] = None
+    education: Optional[str] = None
+    certifications: Optional[List[str]] = None
+
 
 class ATSScoreRequest(BaseModel):
     resumeText: str
@@ -220,23 +233,144 @@ def chat(
     request: ChatMessageRequest,
     _: bool = Depends(verify_request_signature)
 ):
-    msg = request.message.lower()
+    """Conversational entrypoint. Supports:
+    - Explainable job match when resume+job details are provided and user asks why rejected.
+    - Career guidance when user asks about next roles ("What should I do after Java Developer?")
+    - Fallback conversational responses.
 
-    if "job" in msg or "match" in msg:
-        response = "You can analyze a job match from the job details page."
-        intent = "job_match"
-    elif "career" in msg or "growth" in msg:
-        response = "I can help with career guidance and skill planning."
-        intent = "career_guidance"
-    else:
-        response = "Hi! I can help with job matching, ATS score, and career guidance."
-        intent = "general"
+    Returns both a human-friendly `response` string and a structured `details` object when available.
+    """
+    msg = (request.message or "").lower()
 
+    # 1) Explainable AI for job matching
+    explain_triggers = ["why", "rejected", "not shortlisted", "not shortlisted", "shortlist", "shortlisted", "why wasn't i shortlisted", "why was i rejected"]
+
+    if any(t in msg for t in explain_triggers):
+        # Check for required structured inputs
+        if request.resumeText and request.jobDescription and request.jobSkills:
+            try:
+                matcher = get_job_matcher()
+                result = matcher.match_job(
+                    resume_text=request.resumeText,
+                    job_description=request.jobDescription,
+                    job_skills=request.jobSkills or [],
+                    required_experience=request.requiredExperience or 0.0,
+                    job_title=request.jobTitle or ""
+                )
+
+                # Construct a conversational summary
+                lines = []
+                lines.append(result.get("explanation", "Here is a quick analysis:"))
+                lines.append(f"Resume score: {result.get('overall_match_score')}%")
+                if result.get("missing_skills"):
+                    lines.append(f"Skill gap: {', '.join(result.get('missing_skills'))}")
+                if result.get("candidate_experience_years", 0) < result.get("required_experience_years", 0):
+                    exp_gap = round(result.get("required_experience_years") - result.get("candidate_experience_years"), 1)
+                    lines.append(f"Experience gap: Required {result.get('required_experience_years')}y, you have {result.get('candidate_experience_years')}y (gap {exp_gap}y)")
+
+                suggested_actions = []
+                if result.get("missing_skills"):
+                    suggested_actions.append(f"Add projects/courses or obtain certifications for: {', '.join(result.get('missing_skills')[:5])}")
+                if result.get("candidate_experience_years", 0) < result.get("required_experience_years", 0):
+                    suggested_actions.append("Gain practical experience through projects or internships to reach required experience.")
+
+                if suggested_actions:
+                    lines.append("Suggested actions: " + "; ".join(suggested_actions))
+
+                response = "\n".join(lines)
+
+                return {
+                    "success": True,
+                    "data": {
+                        "response": response,
+                        "intent": "explain_match",
+                        "details": result,
+                        "conversationId": request.conversationId or f"conv_{request.userId}_{int(time.time())}"
+                    }
+                }
+            except Exception as e:
+                logger.exception("Explain match failed in chat")
+                raise HTTPException(status_code=500, detail=str(e))
+        else:
+            return {
+                "success": True,
+                "data": {
+                    "response": "To explain why you weren't shortlisted I need your resume text and the job description (or job skills / required experience). Please provide them and try again.",
+                    "intent": "explain_match",
+                    "conversationId": request.conversationId or f"conv_{request.userId}_{int(time.time())}"
+                }
+            }
+
+    # 2) Career Path guidance
+    career_triggers = ["what should i do after", "what next after", "what should i do next", "career guidance", "what should i do"]
+    if any(t in msg for t in career_triggers) or "after" in msg:
+        # try to parse role from message
+        import re
+        match = re.search(r"after ([\w\s]+)\??", msg)
+        role_candidate = None
+        if match:
+            role_candidate = match.group(1).strip()
+
+        current_role = (request.currentRole or role_candidate or "").strip()
+        skills = request.skills or request.context.get("skills") if request.context else request.skills or []
+        experience = request.experienceYears or request.context.get("experienceYears") if request.context else request.experienceYears or 0.0
+
+        if current_role:
+            try:
+                predictor = get_career_predictor()
+                result = predictor.predict_career_path(
+                    current_role=current_role,
+                    skills=skills or [],
+                    experience_years=experience,
+                    education=request.education or "",
+                    certifications=request.certifications or []
+                )
+
+                # build conversational response
+                top_roles = ", ".join([r["role"] for r in result.get("predicted_roles", [])[:3]]) or "Similar senior roles"
+                top_skills = ", ".join([s["skill"] for s in result.get("learning_path", [])[:5]]) or "Expand technical skills like AWS, Docker"
+                salary = result.get("salary_growth", {})
+                salary_line = f"Salary growth: +{salary.get('growth_percent')}% (from {salary.get('current_avg_lpa')} LPA to {salary.get('target_avg_lpa')} LPA)"
+
+                response_lines = [
+                    f"Suggested next roles: {top_roles}",
+                    f"Skills to work on: {top_skills}",
+                    salary_line,
+                    f"Timeline: {result.get('timeline')}",
+                ]
+                if result.get("recommendations"):
+                    response_lines.append("Recommendations: " + "; ".join(result.get("recommendations")))
+
+                response = "\n".join(response_lines)
+
+                return {
+                    "success": True,
+                    "data": {
+                        "response": response,
+                        "intent": "career_guidance",
+                        "details": result,
+                        "conversationId": request.conversationId or f"conv_{request.userId}_{int(time.time())}"
+                    }
+                }
+            except Exception as e:
+                logger.exception("Career guidance failed in chat")
+                raise HTTPException(status_code=500, detail=str(e))
+        else:
+            return {
+                "success": True,
+                "data": {
+                    "response": "Tell me your current role (e.g., 'Java Developer') and a few of your skills or years of experience, and I can suggest next roles and a learning path.",
+                    "intent": "career_guidance",
+                    "conversationId": request.conversationId or f"conv_{request.userId}_{int(time.time())}"
+                }
+            }
+
+    # 3) Default/fallback
     return {
         "success": True,
         "data": {
-            "response": response,
-            "intent": intent,
+            "response": "Hi! I can help with job matching (send resume and job details to get a detailed explanation), ATS score, and career guidance (tell me your current role).",
+            "intent": "general",
             "conversationId": request.conversationId or f"conv_{request.userId}_{int(time.time())}"
         }
     }

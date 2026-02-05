@@ -221,11 +221,42 @@ export const sendMessage = async (req, res) => {
 
     let assistantMessage;
     try {
+      // Include user resume and job details (if available) to enable explainability from ML service
+      let resumeText = undefined;
+      try {
+        const user = await User.findById(userId);
+        if (user && user.resume) resumeText = user.resume;
+      } catch (e) {
+        console.warn('Failed to load user resume for ML payload:', e.message);
+      }
+
+      let jobDescription = undefined;
+      let jobSkills = undefined;
+      let jobTitle = undefined;
+
+      try {
+        const jobId = context?.jobId || req.body?.jobId;
+        if (jobId) {
+          const job = await Job.findById(jobId);
+          if (job) {
+            jobDescription = job.description;
+            jobSkills = job.skillsRequired || [];
+            jobTitle = job.title;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load job details for ML payload:', e.message);
+      }
+
       const mlResponse = await callMLService("/api/ml/chat", {
         userId,
         message,
         conversationId: conversation._id.toString(),
         context,
+        resumeText,
+        jobDescription,
+        jobSkills,
+        jobTitle,
       });
 
       assistantMessage = await ChatMessage.create({
