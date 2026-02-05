@@ -19,10 +19,18 @@ const SHARED_SECRET = process.env.SHARED_SECRET;
 // ============================
 const generateSignature = () => {
   const timestamp = Date.now().toString();
+
+  if (!SHARED_SECRET) {
+    console.warn('SHARED_SECRET is not set — ML requests will likely be rejected by the ML service.');
+  }
+
   const signature = crypto
-    .createHmac("sha256", SHARED_SECRET)
+    .createHmac("sha256", SHARED_SECRET || "")
     .update(timestamp)
     .digest("hex");
+
+  // Do not log the secret itself, but log that a signature was generated
+  console.debug && console.debug('generateSignature - timestamp:', timestamp, 'signature:', signature.slice(0, 8) + '...');
 
   return { signature, timestamp };
 };
@@ -30,20 +38,32 @@ const generateSignature = () => {
 const callMLService = async (endpoint, data) => {
   const { signature, timestamp } = generateSignature();
 
-  const response = await axios.post(
-    `${ML_SERVICE_URL}${endpoint}`,
-    data,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Signature": signature,
-        "X-Timestamp": timestamp,
-      },
-      timeout: 30000,
-    }
-  );
+  const url = `${ML_SERVICE_URL}${endpoint}`;
+  console.debug && console.debug('callMLService - calling', url);
 
-  return response.data;
+  try {
+    const response = await axios.post(
+      url,
+      data,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Signature": signature,
+          "X-Timestamp": timestamp,
+        },
+        timeout: 30000,
+      }
+    );
+
+    return response.data;
+  } catch (err) {
+    console.error('callMLService failed:', err.message);
+    if (err.response) {
+      console.error('callMLService response status:', err.response.status);
+      console.error('callMLService response data:', JSON.stringify(err.response.data));
+    }
+    throw err;
+  }
 };
 
 // ============================
@@ -215,7 +235,14 @@ export const sendMessage = async (req, res) => {
         content: mlResponse?.data?.response || "I’m here to help!",
         suggestions: mlResponse?.data?.suggestions,
       });
-    } catch {
+    } catch (err) {
+      // Log full error details for diagnosis
+      console.error('ML service call failed in sendMessage:', err.message);
+      if (err.response) {
+        console.error('ML status:', err.response.status);
+        console.error('ML response data:', JSON.stringify(err.response.data));
+      }
+
       assistantMessage = await ChatMessage.create({
         conversationId: conversation._id,
         userId,
