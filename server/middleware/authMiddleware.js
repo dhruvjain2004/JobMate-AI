@@ -25,11 +25,13 @@ export const protectCompany = async (req, res, next) => {
 
 export const protectUser = async (req, res, next) => {
   const bearer = extractBearerToken(req.headers.authorization || "");
+  console.debug && console.debug('protectUser - Authorization header:', bearer);
   if (!bearer) {
     return res.status(401).json({ success: false, message: "Unauthorized, please login again." });
   }
   try {
     const decoded = jwt.verify(bearer, process.env.JWT_SECRET);
+    console.debug && console.debug('protectUser - decoded token id:', decoded?.id);
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
@@ -38,6 +40,7 @@ export const protectUser = async (req, res, next) => {
     req.userId = decoded.id; // ensure controllers relying on req.userId work
     next();
   } catch (error) {
+    console.error('protectUser error:', error.message);
     res.status(401).json({ success: false, message: error.message });
   }
 };

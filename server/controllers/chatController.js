@@ -54,8 +54,9 @@ export const getOrCreateConversation = async (req, res) => {
     const { conversationId, type = "general", jobId } = req.body;
     const userId = req.userId;
 
+    // If userId is missing it means auth middleware didn't set it (bad/absent token)
     if (!userId) {
-      return res.status(400).json({ success: false, message: "userId is required" });
+      return res.status(401).json({ success: false, message: "Unauthorized: userId missing. Ensure Authorization header is set." });
     }
 
     let conversation = null;
