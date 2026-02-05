@@ -317,7 +317,17 @@ def chat(
 
         if current_role:
             try:
-                predictor = get_career_predictor()
+                try:
+                    predictor = get_career_predictor()
+                except NameError:
+                    # Fallback: if the helper isn't available (deployment edge case), instantiate directly
+                    logger.warning("get_career_predictor not available; instantiating CareerPathPredictor directly")
+                    from models.career_predictor import CareerPathPredictor
+                    predictor = CareerPathPredictor()
+                    # ensure global cache is populated for subsequent requests
+                    global career_predictor
+                    career_predictor = predictor
+
                 result = predictor.predict_career_path(
                     current_role=current_role,
                     skills=skills or [],
