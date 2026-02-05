@@ -73,35 +73,45 @@ job_matcher: Optional[JobMatcher] = None
 career_predictor: Optional[CareerPathPredictor] = None
 
 
-# def get_job_matcher() -> JobMatcher:
-#     global job_matcher
-#     if job_matcher is None:
-#         logger.info("Initializing JobMatcher (NLTK-based)")
-#         job_matcher = JobMatcher()   # ✅ NO ARGUMENTS
-#     return job_matcher
+def get_job_matcher() -> JobMatcher:
+    global job_matcher
+    if job_matcher is None:
+        logger.info("Initializing JobMatcher (NLTK-based)")
+        job_matcher = JobMatcher()   # ✅ NO ARGUMENTS
+    return job_matcher
 
 
-# def get_career_predictor() -> CareerPathPredictor:
-#     global career_predictor
-#     if career_predictor is None:
-#         logger.info("Initializing CareerPathPredictor")
-#         career_predictor = CareerPathPredictor()
-#     return career_predictor
+def get_career_predictor() -> CareerPathPredictor:
+    global career_predictor
+    if career_predictor is None:
+        logger.info("Initializing CareerPathPredictor")
+        career_predictor = CareerPathPredictor()
+    return career_predictor
 
 
 # ---------------- SECURITY ---------------- #
+
+
+def _is_shared_secret_placeholder() -> bool:
+    s = (settings.SHARED_SECRET or "").lower()
+    return s.startswith("your") or "shared-secret" in s or len(s) < 16
+
 
 def verify_request_signature(
     x_signature: Optional[str] = Header(None),
     x_timestamp: Optional[str] = Header(None)
 ) -> bool:
 
+    logger.debug("verify_request_signature called - X-Signature present: %s, X-Timestamp: %s", bool(x_signature), x_timestamp)
+
+    # Only skip verification in development to avoid bypassing production checks
     if settings.ENVIRONMENT == "development":
+        logger.debug("verify_request_signature - development environment; skipping verification")
         return True
 
-
     if not x_signature or not x_timestamp:
-        raise HTTPException(status_code=401, detail="Missing auth headers")
+        logger.warning("verify_request_signature - missing headers. X-Signature: %s, X-Timestamp: %s", x_signature, x_timestamp)
+        raise HTTPException(status_code=401, detail="Missing auth headers (X-Signature / X-Timestamp)")
 
     expected = hmac.new(
         settings.SHARED_SECRET.encode(),
@@ -110,8 +120,14 @@ def verify_request_signature(
     ).hexdigest()
 
     if not hmac.compare_digest(expected, x_signature):
-        raise HTTPException(status_code=401, detail="Invalid signature")
+        logger.warning(
+            "verify_request_signature - signature mismatch. received_prefix=%s expected_prefix=%s timestamp=%s",
+            (x_signature[:8] if x_signature else None), expected[:8], x_timestamp
+        )
+        # Expose a clear but non-sensitive message
+        raise HTTPException(status_code=401, detail="Invalid signature. Check SHARED_SECRET configuration on both services.")
 
+    logger.debug("verify_request_signature - signature valid")
     return True
 
 
@@ -169,7 +185,9 @@ def health():
     return {
         "status": "healthy",
         "job_matcher_loaded": job_matcher is not None,
-        "environment": settings.ENVIRONMENT
+        "environment": settings.ENVIRONMENT,
+        "signature_required": settings.ENVIRONMENT != "development",
+        "shared_secret_configured": not _is_shared_secret_placeholder()
     }
 
 
