@@ -9,7 +9,12 @@ const JobCard = ({job}) => {
   return (
     <div className='border p-3 sm:p-6 shadow rounded'>
         <div className='flex justify-between items-center'>
-            <img className='h-7 sm:h-8' src={job.companyId?.image || '/default-company.png'} alt="" />
+            <img
+              className='h-8 w-8 sm:h-10 sm:w-10 object-contain bg-gray-100 rounded'
+              src={job.companyId?.image || '/default-company.png'}
+              alt={job.companyId?.name || 'Company'}
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-company.png'; }}
+            />
         </div>
         <h4 className='font-medium text-base sm:text-xl mt-2'>{job.title}</h4>
         <div className='flex flex-wrap items-center gap-2 sm:gap-3 mt-2 text-xs'>
