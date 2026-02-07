@@ -14,6 +14,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import AdminAuth from "./pages/AdminAuth";
 import Profile from "./pages/Profile";
+import FAQ from "./pages/FAQ";
+import BackToTop from "./components/BackToTop";
 import "quill/dist/quill.snow.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -25,6 +27,7 @@ const App = () => {
     <div>
       {showRecruiterLogin && <RecruiterLogin />}
       <ChatWidget />
+      <BackToTop />
       <ToastContainer />
       <Routes>
         <Route path="/" element={<Home />} />
@@ -32,6 +35,7 @@ const App = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/admin-auth" element={<AdminAuth />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/faq" element={<FAQ />} />
         <Route path="/apply-job/:id" element={<ApplyJob />} />
         <Route path="/applications" element={<Applications />} />
 

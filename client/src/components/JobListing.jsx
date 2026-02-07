@@ -2,9 +2,10 @@ import React, { useContext, useEffect, useState, useRef } from "react";
 import { AppContext } from "../context/AppContext";
 import { assets, JobCategories, JobLocations } from "../assets/assets";
 import JobCard from "./JobCard";
+import JobSkeleton from "./JobSkeleton";
 
 const JobListing = () => {
-  const { isSearched, searchFilter, setSearchFilter, jobs } = useContext(AppContext);
+  const { isSearched, searchFilter, setSearchFilter, jobs, jobsLoading } = useContext(AppContext);
 
   const [showFilter, setShowFilter] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -262,7 +263,12 @@ const JobListing = () => {
         <p className="mb-4 sm:mb-8 text-xs sm:text-base">Get your desired job from top companies</p>
         
         <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-          {paginatedJobs.length === 0 ? (
+          {jobsLoading ? (
+            // Show skeleton loading state
+            Array.from({ length: 12 }).map((_, index) => (
+              <JobSkeleton key={index} />
+            ))
+          ) : paginatedJobs.length === 0 ? (
             <div className="col-span-3 text-center text-gray-500 py-10">No jobs found.</div>
           ) : (
             paginatedJobs.map((job, index) => (

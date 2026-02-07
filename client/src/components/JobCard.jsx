@@ -1,10 +1,26 @@
-import React from 'react'
-
+import React, { useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AppContext } from '../context/AppContext'
+import { notifyWarning } from '../utils/notifications'
 
 const JobCard = ({job}) => {
-
     const navigate = useNavigate();
+    const { userData } = useContext(AppContext);
+
+    const handleApplyClick = () => {
+      if (!userData) {
+        notifyWarning('Please login to apply for jobs');
+        navigate('/login');
+        return;
+      }
+      navigate(`/apply-job/${job._id}`);
+      scrollTo(0, 0);
+    };
+
+    const handleLearnMore = () => {
+      navigate(`/apply-job/${job._id}`);
+      scrollTo(0, 0);
+    };
 
   return (
     <div className='border p-3 sm:p-6 shadow rounded'>
@@ -93,10 +109,16 @@ const JobCard = ({job}) => {
         )}
 
         <div className='mt-4 flex flex-col sm:flex-row gap-2 sm:gap-4 text-xs sm:text-sm'>
-            <button onClick={()=>{navigate(`/apply-job/${job._id}`); scrollTo(0,0)}} className='bg-blue-600 text-white px-4 py-2 rounded'>
+            <button 
+              onClick={handleApplyClick} 
+              className='bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-200'
+            >
                 Apply now
             </button>
-            <button onClick={()=>{navigate(`/apply-job/${job._id}`); scrollTo(0,0)}} className='text-gray-500 border border-gray-500 px-4 py-2 rounded shadow'>
+            <button 
+              onClick={handleLearnMore} 
+              className='text-gray-500 border border-gray-500 px-4 py-2 rounded shadow hover:bg-gray-50 transition duration-200'
+            >
                 Learn more
             </button>
             </div>
