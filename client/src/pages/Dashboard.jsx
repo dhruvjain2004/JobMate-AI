@@ -31,7 +31,7 @@ const Dashboard = () => {
         <div className="px-2 sm:px-5 flex justify-between items-center">
           <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate('/') }>
             <img src={assets.vite_logo} alt="NaukriVerse Symbol" height={40} width={40} />
-            <span className="font-bold text-xl ml-2">NaukriVerse</span>
+            <span className="font-bold text-xl ml-2">JobMate AI</span>
           </div>
           {companyData && (
             <div className="flex items-center gap-3">

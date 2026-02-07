@@ -16,7 +16,7 @@ const RecruiterLogin = () => {
   const [logo, setLogo] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const { setShowRecruiterLogin, backendUrl, setCompanyToken, setCompanyData } =
+  const { setShowRecruiterLogin, backendUrl, setCompanyToken, setCompanyData, setUserToken, logoutUser } =
     useContext(AppContext);
 
   const handleLogoChange = (event) => {
@@ -36,6 +36,11 @@ const RecruiterLogin = () => {
           password,
         });
         if (data.success) {
+          // Clear user login state
+          logoutUser();
+          setUserToken(null);
+          localStorage.removeItem('userToken');
+          // Set recruiter state
           setCompanyData(data.company);
           setCompanyToken(data.token);
           localStorage.setItem("companyToken", data.token);
@@ -58,6 +63,11 @@ const RecruiterLogin = () => {
 
         const { data } = await axios.post(backendUrl + "/api/company/register", formData);
         if (data.success) {
+          // Clear user login state
+          logoutUser();
+          setUserToken(null);
+          localStorage.removeItem('userToken');
+          // Set recruiter state
           setCompanyData(data.company);
           setCompanyToken(data.token);
           localStorage.setItem("companyToken", data.token);

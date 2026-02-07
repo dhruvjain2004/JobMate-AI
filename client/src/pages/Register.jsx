@@ -8,7 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 
 const Register = () => {
-  const { backendUrl, setUserToken } = useContext(AppContext);
+  const { backendUrl, setUserToken, setCompanyToken, setCompanyData, setShowRecruiterLogin } = useContext(AppContext);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -44,6 +44,12 @@ const Register = () => {
       const { data } = await axios.post(`${backendUrl}/api/auth/register`, formData);
       if (data.success) {
         toast.success(data.message);
+        // Clear recruiter login state
+        setCompanyToken(null);
+        setCompanyData(null);
+        setShowRecruiterLogin(false);
+        localStorage.removeItem('companyToken');
+        // Set user token
         setUserToken(data.token);
         navigate("/");
       } else {
@@ -63,6 +69,12 @@ const Register = () => {
       });
       if (data.success) {
         toast.success("Registered with Google");
+        // Clear recruiter login state
+        setCompanyToken(null);
+        setCompanyData(null);
+        setShowRecruiterLogin(false);
+        localStorage.removeItem('companyToken');
+        // Set user token
         setUserToken(data.token);
         navigate("/");
       } else {
