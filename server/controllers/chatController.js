@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import ChatConversation from "../models/ChatConversation.js";
 import ChatMessage from "../models/ChatMessage.js";
+import MLAnalysis from "../models/MLAnalysis.js";
 import User from "../models/user.js";
 import Job from "../models/Job.js";
 
@@ -19,49 +20,166 @@ const SHARED_SECRET = process.env.SHARED_SECRET;
 const generateSignature = () => {
   const timestamp = Date.now().toString();
 
+  if (!SHARED_SECRET) {
+    console.warn('SHARED_SECRET is not set — ML requests will likely be rejected by the ML service.');
+  }
+
   const signature = crypto
     .createHmac("sha256", SHARED_SECRET || "")
     .update(timestamp)
     .digest("hex");
 
+  // Do not log the secret itself, but log that a signature was generated
+  console.debug && console.debug('generateSignature - timestamp:', timestamp, 'signature:', signature.slice(0, 8) + '...');
+
   return { signature, timestamp };
 };
 
-// ----------------------------
-// WAKE ML (prevents 502)
-// ----------------------------
-const wakeML = async () => {
+const callMLService = async (endpoint, data) => {
+  const { signature, timestamp } = generateSignature();
+
+  const url = `${ML_SERVICE_URL}${endpoint}`;
+  console.debug && console.debug('callMLService - calling', url);
+
   try {
-    await axios.get(`${ML_SERVICE_URL}/health`, { timeout: 8000 });
-    console.log("ML service awake");
-  } catch {
-    console.log("ML cold start detected (ok)");
+    const response = await axios.post(
+      url,
+      data,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Signature": signature,
+          "X-Timestamp": timestamp,
+        },
+        timeout: 30000,
+      }
+    );
+
+    return response.data;
+  } catch (err) {
+    console.error('callMLService failed:', err.message);
+    if (err.response) {
+      console.error('callMLService response status:', err.response.status);
+      console.error('callMLService response data:', JSON.stringify(err.response.data));
+    }
+    throw err;
   }
 };
 
-// ----------------------------
-// CALL ML WITH RETRY
-// ----------------------------
-const callMLService = async (endpoint, payload, retries = 2) => {
-  const { signature, timestamp } = generateSignature();
-  const url = `${ML_SERVICE_URL}${endpoint}`;
-
+// ============================
+// CONVERSATIONS
+// ============================
+export const getOrCreateConversation = async (req, res) => {
   try {
-    return await axios.post(url, payload, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Signature": signature,
-        "X-Timestamp": timestamp,
-      },
-      timeout: 30000,
-    });
-  } catch (err) {
-    if (retries > 0) {
-      console.warn("Retrying ML call...");
-      await new Promise(r => setTimeout(r, 2000));
-      return callMLService(endpoint, payload, retries - 1);
+    const { conversationId, type = "general", jobId } = req.body;
+    const userId = req.userId;
+
+    // If userId is missing it means auth middleware didn't set it (bad/absent token)
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized: userId missing. Ensure Authorization header is set." });
     }
-    throw err;
+
+    let conversation = null;
+
+    if (conversationId) {
+      conversation = await ChatConversation.findOne({
+        _id: conversationId,
+        userId,
+        status: "active",
+      });
+    }
+
+    if (!conversation) {
+      const context = {};
+
+      if (jobId) {
+        const job = await Job.findById(jobId);
+        if (job) {
+          context.jobId = jobId;
+          context.jobTitle = job.title;
+        }
+      }
+
+      conversation = await ChatConversation.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        type,
+        context,
+        status: "active",
+        messages: [],
+        messageCount: 0,
+      });
+    }
+
+    res.json({ success: true, data: conversation });
+  } catch (error) {
+    console.error("Get/Create Conversation Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getConversationHistory = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.userId;
+
+    const conversation = await ChatConversation.findOne({
+      _id: conversationId,
+      userId,
+      status: "active",
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    const messages = await ChatMessage.find({ conversationId })
+      .sort({ createdAt: 1 });
+
+    res.json({
+      success: true,
+      data: { conversation, messages },
+    });
+  } catch (error) {
+    console.error("Get Conversation History Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getUserConversations = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const conversations = await ChatConversation.find({
+      userId,
+      status: "active",
+    }).sort({ lastMessageAt: -1 });
+
+    res.json({ success: true, data: conversations });
+  } catch (error) {
+    console.error("Get User Conversations Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.userId;
+
+    const conversation = await ChatConversation.findOneAndUpdate(
+      { _id: conversationId, userId },
+      { status: "deleted" },
+      { new: true }
+    );
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    res.json({ success: true, message: "Conversation deleted successfully" });
+  } catch (error) {
+    console.error("Delete Conversation Error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -86,8 +204,9 @@ export const sendMessage = async (req, res) => {
     if (!conversation) {
       conversation = await ChatConversation.create({
         userId: new mongoose.Types.ObjectId(userId),
-        status: "active",
+        type: "general",
         context,
+        status: "active",
         messages: [],
         messageCount: 0,
       });
@@ -101,42 +220,65 @@ export const sendMessage = async (req, res) => {
     });
 
     let assistantMessage;
-
     try {
-      // Load resume & job context safely
-      const user = await User.findById(userId);
-      const jobId = context?.jobId;
-      const job = jobId ? await Job.findById(jobId) : null;
+      // Include user resume and job details (if available) to enable explainability from ML service
+      let resumeText = undefined;
+      try {
+        const user = await User.findById(userId);
+        if (user && user.resume) resumeText = user.resume;
+      } catch (e) {
+        console.warn('Failed to load user resume for ML payload:', e.message);
+      }
 
-      await wakeML();
+      let jobDescription = undefined;
+      let jobSkills = undefined;
+      let jobTitle = undefined;
+
+      try {
+        const jobId = context?.jobId || req.body?.jobId;
+        if (jobId) {
+          const job = await Job.findById(jobId);
+          if (job) {
+            jobDescription = job.description;
+            jobSkills = job.skillsRequired || [];
+            jobTitle = job.title;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load job details for ML payload:', e.message);
+      }
 
       const mlResponse = await callMLService("/api/ml/chat", {
         userId,
         message,
         conversationId: conversation._id.toString(),
         context,
-        resumeText: user?.resume,
-        jobDescription: job?.description,
-        jobSkills: job?.skillsRequired,
-        jobTitle: job?.title,
+        resumeText,
+        jobDescription,
+        jobSkills,
+        jobTitle,
       });
 
       assistantMessage = await ChatMessage.create({
         conversationId: conversation._id,
         userId,
         role: "assistant",
-        content: mlResponse.data?.data?.response || "I’m here to help!",
-        suggestions: mlResponse.data?.data?.suggestions,
+        content: mlResponse?.data?.response || "I’m here to help!",
+        suggestions: mlResponse?.data?.suggestions,
       });
-
     } catch (err) {
-      console.error("ML service unavailable:", err.message);
+      // Log full error details for diagnosis
+      console.error('ML service call failed in sendMessage:', err.message);
+      if (err.response) {
+        console.error('ML status:', err.response.status);
+        console.error('ML response data:', JSON.stringify(err.response.data));
+      }
 
       assistantMessage = await ChatMessage.create({
         conversationId: conversation._id,
         userId,
         role: "assistant",
-        content: "AI service is warming up. Please try again in a few seconds.",
+        content: "ML service unavailable. Please try again later.",
       });
     }
 
@@ -149,9 +291,41 @@ export const sendMessage = async (req, res) => {
       success: true,
       data: { conversationId: conversation._id, userMessage, assistantMessage },
     });
-
   } catch (error) {
     console.error("Send Message Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// ============================
+// ML FEATURES
+// ============================
+export const calculateATSScore = async (req, res) => {
+  try {
+    const { resumeText, jobSkills } = req.body;
+
+    const mlResponse = await callMLService("/api/ml/ats-score", {
+      resumeText,
+      jobSkills,
+    });
+
+    res.json({ success: true, data: mlResponse.data });
+  } catch (error) {
+    console.error("ATS Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const explainJobMatch = async (req, res) => {
+  res.json({
+    success: true,
+    data: { message: "Job match explanation coming soon" },
+  });
+};
+
+export const getCareerPath = async (req, res) => {
+  res.json({
+    success: true,
+    data: { message: "Career path guidance coming soon" },
+  });
 };
