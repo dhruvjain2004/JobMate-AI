@@ -35,13 +35,30 @@ const generateSignature = () => {
   return { signature, timestamp };
 };
 
-const callMLService = async (endpoint, data) => {
-  const { signature, timestamp } = generateSignature();
+// ============================
+// ML WAKE-UP (PREVENTS 502)
+// ============================
+const wakeMLService = async () => {
+  try {
+    const healthUrl = `${ML_SERVICE_URL}/health`;
+    await axios.get(healthUrl, { timeout: 8000 });
+    console.log("ML service awake");
+  } catch (err) {
+    console.warn("ML cold start detected, continuing...");
+  }
+};
 
+
+const callMLService = async (endpoint, data, retries = 2) => {
+  const { signature, timestamp } = generateSignature();
   const url = `${ML_SERVICE_URL}${endpoint}`;
-  console.debug && console.debug('callMLService - calling', url);
+
+  console.debug && console.debug("callMLService - calling", url);
 
   try {
+    // 🔥 Wake ML first (fixes Render sleep)
+    await wakeMLService();
+
     const response = await axios.post(
       url,
       data,
@@ -57,14 +74,24 @@ const callMLService = async (endpoint, data) => {
 
     return response.data;
   } catch (err) {
-    console.error('callMLService failed:', err.message);
+    console.error("callMLService failed:", err.message);
+
     if (err.response) {
-      console.error('callMLService response status:', err.response.status);
-      console.error('callMLService response data:', JSON.stringify(err.response.data));
+      console.error("ML status:", err.response.status);
+      console.error("ML response:", JSON.stringify(err.response.data));
     }
+
+    // 🔁 Retry once or twice (cold start / hiccup)
+    if (retries > 0) {
+      console.warn(`Retrying ML service (${retries})...`);
+      await new Promise(r => setTimeout(r, 2000));
+      return callMLService(endpoint, data, retries - 1);
+    }
+
     throw err;
   }
 };
+
 
 // ============================
 // CONVERSATIONS
