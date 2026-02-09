@@ -68,7 +68,7 @@ const callMLService = async (endpoint, data, retries = 2) => {
           "X-Signature": signature,
           "X-Timestamp": timestamp,
         },
-        timeout: 30000,
+        timeout: 60000,
       }
     );
 

@@ -48,6 +48,11 @@ app = FastAPI(
 def health():
     return {"status": "ok"}
 
+@app.get("/keep-alive")
+def keep_alive():
+    """Simple endpoint to keep the service alive on Render."""
+    return {"status": "alive", "timestamp": time.time()}
+
 
 @app.on_event("startup")
 def warmup_models():
@@ -223,7 +228,7 @@ def explain_match(
     _: bool = Depends(verify_request_signature)
 ):
     try:
-        matcher = job_matcher
+        matcher = get_job_matcher()
 
         result = matcher.match_job(
             resume_text=request.resumeText,
