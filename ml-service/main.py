@@ -44,6 +44,11 @@ app = FastAPI(
     redoc_url="/api/ml/redoc"
 )
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.on_event("startup")
 def warmup_models():
     global job_matcher, career_predictor
